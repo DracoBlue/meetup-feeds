@@ -59,7 +59,7 @@ func feedHandler(w http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("Content-Type", "application/rss+xml")
 		w.Write([]byte(fmt.Sprintf("%s", rss)))
 		return
 	}
@@ -69,7 +69,7 @@ func feedHandler(w http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("Content-Type", "application/atom+xml")
 		w.Write([]byte(fmt.Sprintf("%s", atom)))
 		return
 	}
@@ -77,24 +77,19 @@ func feedHandler(w http.ResponseWriter, req *http.Request) {
 	panic("Invalid format")
 }
 
-func ensureEnvironmentVariableIsSet(key string) {
-	_, exists := os.LookupEnv(key)
-	if !exists {
-		panic("Environment variable " + key + " is missing!")
-	}
-}
-
 func main() {
 	godotenv.Load()
 
-	ensureEnvironmentVariableIsSet("USERNAME")
-	ensureEnvironmentVariableIsSet("PASSWORD")
+	_, userNameExists := os.LookupEnv("USERNAME")
 
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
-	router.Use(middleware.BasicAuth("MyRealm", map[string]string{
-		os.Getenv("USERNAME"): os.Getenv("PASSWORD"),
-	}))
+
+	if userNameExists {
+		router.Use(middleware.BasicAuth("MyRealm", map[string]string{
+			os.Getenv("USERNAME"): os.Getenv("PASSWORD"),
+		}))
+	}
 
 	router.Get("/{type:rss}/{groupUrlName:[a-z-]+}", feedHandler)
 	router.Get("/{type:atom}/{groupUrlName:[a-z-]+}", feedHandler)
