@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/feeds"
 	godotenv "gopkg.in/joho/godotenv.v1"
+	"html"
 	"log"
 	"net/http"
 	"os"
@@ -18,13 +19,35 @@ func ParseFeedItemsFromEvents(events []*meetup.Event) []*feeds.Item {
 
 	for _, event := range events {
 		eventTime := time.Unix(int64(event.Time/1000), 0)
+		updateTime := time.Unix(int64(event.Updated/1000), 0)
+
+		venueSuffix := ""
+
+		if event.Venue != nil {
+			venueSuffix = "<p>"
+			venueSuffix += html.EscapeString(event.Venue.Name)
+			if event.Venue.Address1 != "" {
+				venueSuffix += html.EscapeString(", " + event.Venue.Address1)
+			}
+			if event.Venue.Address2 != "" {
+				venueSuffix += html.EscapeString(", " + event.Venue.Address2)
+			}
+			if event.Venue.City != "" {
+				venueSuffix += html.EscapeString(", " + event.Venue.City)
+			}
+			if event.Venue.LocalizedCountryName != "" {
+				venueSuffix += html.EscapeString(", " + event.Venue.LocalizedCountryName)
+			}
+			venueSuffix += "</p>"
+		} else {
+			venueSuffix = "<p>No venue</p>"
+		}
 
 		items = append(items, &feeds.Item{
-			Title:       event.Name,
+			Title:       event.Name + " (" + eventTime.Format("Mon, 2 Jan 2006 15:04:05 MST") + ")",
 			Link:        &feeds.Link{Href: event.Link},
-			Description: event.Description,
-			Author:      &feeds.Author{Name: event.Group.Name},
-			Created:     eventTime,
+			Description: event.Description + venueSuffix + "<p>" + eventTime.Format("Mon, 2 Jan 2006 15:04:05 MST") + "</p>",
+			Created:     updateTime,
 		})
 
 	}
@@ -47,11 +70,16 @@ func feedHandler(w http.ResponseWriter, req *http.Request) {
 
 	feed := &feeds.Feed{
 		Title:       groupUrlName,
-		Link:        &feeds.Link{Href: "https://meetup.com/" + groupUrlName},
+		Link:        &feeds.Link{Href: "https://meetup.com/" + groupUrlName + "/events/"},
 		Description: "",
 		Author:      nil,
 		Created:     now,
 		Items:       ParseFeedItemsFromEvents(events),
+	}
+
+	if len(events) > 0 {
+		feed.Title = events[0].Group.Name
+		feed.Description = events[0].Group.Name
 	}
 
 	if feedType == "rss" {
